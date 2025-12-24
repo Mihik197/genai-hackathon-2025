@@ -5,17 +5,22 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
-    analyzeRegulation,
+    analyzeRegulationStream,
     getAnalysisHistory,
     getAnalysisById,
+    getPolicies,
     type ComplianceReport as ReportType,
     type AnalysisHistoryItem,
+    type ProgressEvent,
+    type PoliciesByCategory,
 } from "@/lib/api";
 import { FileUpload } from "@/components/comply/FileUpload";
 import { ComplianceReport } from "@/components/comply/ComplianceReport";
-import { CircleNotch, ArrowLeft, ClockCounterClockwise, CaretDown, CaretUp, CheckCircle, Warning, WarningCircle, Clock } from "@phosphor-icons/react";
+import { CircleNotch, ArrowLeft, ClockCounterClockwise, CaretDown, CaretUp, CheckCircle, Warning, WarningCircle, Clock, GearSix } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/Modal";
+import { PolicyManager } from "@/components/comply/PolicyManager";
 
 export default function ComplyPage() {
     const [viewState, setViewState] = useState<"UPLOAD" | "ANALYZING" | "RESULT">("UPLOAD");
@@ -25,6 +30,12 @@ export default function ComplyPage() {
     const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [historyExpanded, setHistoryExpanded] = useState(false);
+    const [progressStep, setProgressStep] = useState<string>("");
+    const [progressMessage, setProgressMessage] = useState<string>("");
+    const [progressCurrent, setProgressCurrent] = useState<number>(0);
+    const [progressTotal, setProgressTotal] = useState<number>(0);
+    const [showPolicyModal, setShowPolicyModal] = useState(false);
+    const [policies, setPolicies] = useState<PoliciesByCategory>({});
 
     useEffect(() => {
         fetchHistory();
@@ -35,12 +46,33 @@ export default function ComplyPage() {
         setHistory(data.analyses);
     };
 
+    const fetchPolicies = async () => {
+        const data = await getPolicies();
+        setPolicies(data);
+    };
+
+    const openPolicyModal = () => {
+        fetchPolicies();
+        setShowPolicyModal(true);
+    };
+
     const handleFileSelect = async (file: File) => {
         setViewState("ANALYZING");
         setErrorMsg(null);
         setSelectedHistoryId(null);
+        setProgressStep("");
+        setProgressMessage("Starting analysis...");
+        setProgressCurrent(0);
+        setProgressTotal(0);
 
-        const result = await analyzeRegulation(file);
+        const result = await analyzeRegulationStream(file, (event: ProgressEvent) => {
+            if (event.type === "progress") {
+                setProgressStep(event.step || "");
+                setProgressMessage(event.message || "");
+                if (event.current !== undefined) setProgressCurrent(event.current);
+                if (event.total !== undefined) setProgressTotal(event.total);
+            }
+        });
 
         if (result.success && result.report) {
             setReport(result.report);
@@ -99,6 +131,11 @@ export default function ComplyPage() {
                 {viewState === "RESULT" && (
                     <Button variant="secondary" onClick={resetAnalysis} leftIcon={<ArrowLeft />}>
                         New Analysis
+                    </Button>
+                )}
+                {viewState !== "ANALYZING" && (
+                    <Button variant="outline" onClick={openPolicyModal} leftIcon={<GearSix />}>
+                        Manage Policies
                     </Button>
                 )}
             </div>
@@ -238,12 +275,68 @@ export default function ComplyPage() {
                             <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse"></div>
                             <CircleNotch size={64} className="text-primary animate-spin relative z-10" />
                         </div>
-                        <h2 className="text-2xl font-bold text-text-main mt-8">Analyzing Document...</h2>
+                        <h2 className="text-2xl font-bold text-text-main mt-8">
+                            {progressStep === "analyzing" && progressTotal > 0
+                                ? `Analyzing Policy ${progressCurrent}/${progressTotal}`
+                                : "Analyzing Document..."}
+                        </h2>
                         <p className="text-text-muted mt-2 max-w-md">
-                            Reading the regulation, fetching relevant policies, and identifying compliance gaps.
+                            {progressMessage || "Reading the regulation, fetching relevant policies, and identifying compliance gaps."}
                         </p>
-                        <div className="mt-8 max-w-xs w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                            <div className="h-full bg-primary rounded-full w-1/3 animate-[loading-bar_2s_ease-in-out_infinite]"></div>
+                        {progressStep === "analyzing" && progressTotal > 0 && (
+                            <div className="mt-6 max-w-xs w-full">
+                                <div className="flex justify-between text-xs text-text-muted mb-1">
+                                    <span>Progress</span>
+                                    <span>{Math.round((progressCurrent / progressTotal) * 100)}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                    <motion.div
+                                        className="h-full bg-primary rounded-full"
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${(progressCurrent / progressTotal) * 100}%` }}
+                                        transition={{ duration: 0.3 }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {progressStep !== "analyzing" && (
+                            <div className="mt-8 max-w-xs w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                <div className="h-full bg-primary rounded-full w-1/3 animate-[loading-bar_2s_ease-in-out_infinite]"></div>
+                            </div>
+                        )}
+                        <div className="mt-8 flex flex-col gap-2 text-sm">
+                            {["upload", "categorizing", "categorized", "retrieving", "retrieved", "analyzing", "aggregating"].map((step, i) => {
+                                const stepLabels: Record<string, string> = {
+                                    upload: "Document uploaded",
+                                    categorizing: "Reading regulation...",
+                                    categorized: "Categories identified",
+                                    retrieving: "Finding policies...",
+                                    retrieved: "Policies found",
+                                    analyzing: "Analyzing policies...",
+                                    aggregating: "Generating report...",
+                                };
+                                const steps = ["upload", "categorizing", "categorized", "retrieving", "retrieved", "analyzing", "aggregating"];
+                                const currentIdx = steps.indexOf(progressStep);
+                                const stepIdx = steps.indexOf(step);
+                                const isComplete = stepIdx < currentIdx;
+                                const isCurrent = step === progressStep;
+
+                                return (
+                                    <div key={step} className={cn(
+                                        "flex items-center gap-2 transition-all",
+                                        isComplete ? "text-emerald-600" : isCurrent ? "text-primary font-medium" : "text-gray-400"
+                                    )}>
+                                        {isComplete ? (
+                                            <CheckCircle size={16} weight="fill" />
+                                        ) : isCurrent ? (
+                                            <CircleNotch size={16} className="animate-spin" />
+                                        ) : (
+                                            <div className="w-4 h-4 rounded-full border-2 border-current" />
+                                        )}
+                                        <span>{stepLabels[step]}</span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </motion.div>
                 )}
@@ -254,6 +347,14 @@ export default function ComplyPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <Modal
+                isOpen={showPolicyModal}
+                onClose={() => setShowPolicyModal(false)}
+                title="Manage Bank Policies"
+            >
+                <PolicyManager policies={policies} onRefresh={fetchPolicies} />
+            </Modal>
         </DashboardLayout>
     );
 }

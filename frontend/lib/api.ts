@@ -100,3 +100,147 @@ export async function getAnalysisById(id: string): Promise<{ report?: Compliance
     }
     return await response.json();
 }
+
+export interface ProgressEvent {
+    type: "progress" | "complete" | "error";
+    step?: string;
+    message?: string;
+    current?: number;
+    total?: number;
+    report?: ComplianceReport;
+    processing_time_seconds?: number;
+}
+
+export async function analyzeRegulationStream(
+    file: File,
+    onProgress: (event: ProgressEvent) => void
+): Promise<AnalyzeResponse> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/comply/analyze-stream`, {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return {
+                success: false,
+                error: errorData.detail || `Upload failed with status ${response.status}`,
+                processing_time_seconds: 0,
+            };
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+            return { success: false, error: "No response body", processing_time_seconds: 0 };
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let finalReport: ComplianceReport | undefined;
+        let processingTime = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                if (line.trim()) {
+                    try {
+                        const event: ProgressEvent = JSON.parse(line);
+                        onProgress(event);
+
+                        if (event.type === "complete" && event.report) {
+                            finalReport = event.report;
+                            processingTime = event.processing_time_seconds || 0;
+                        }
+                        if (event.type === "error") {
+                            return {
+                                success: false,
+                                error: event.message || "Analysis failed",
+                                processing_time_seconds: 0,
+                            };
+                        }
+                    } catch {
+                        // Skip malformed JSON
+                    }
+                }
+            }
+        }
+
+        if (finalReport) {
+            return {
+                success: true,
+                report: finalReport,
+                processing_time_seconds: processingTime,
+            };
+        }
+
+        return { success: false, error: "No report received", processing_time_seconds: 0 };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Network error",
+            processing_time_seconds: 0,
+        };
+    }
+}
+
+// Policy Management Types
+export interface PolicyFile {
+    file_name: string;
+    file_size: number;
+}
+
+export interface CategoryPolicies {
+    name: string;
+    policies: PolicyFile[];
+}
+
+export interface PoliciesByCategory {
+    [category: string]: CategoryPolicies;
+}
+
+// Policy Management API
+export async function getPolicies(): Promise<PoliciesByCategory> {
+    const response = await fetch(`${API_BASE_URL}/comply/policies`);
+    if (!response.ok) {
+        return {};
+    }
+    return await response.json();
+}
+
+export async function uploadPolicy(category: string, file: File): Promise<{ success: boolean; message?: string; error?: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_BASE_URL}/comply/policies/${category}`, {
+        method: "POST",
+        body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+        return { success: false, error: data.detail || "Upload failed" };
+    }
+    return { success: true, message: data.message };
+}
+
+export async function deletePolicy(category: string, filename: string): Promise<{ success: boolean; error?: string }> {
+    const response = await fetch(`${API_BASE_URL}/comply/policies/${category}/${encodeURIComponent(filename)}`, {
+        method: "DELETE",
+    });
+
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        return { success: false, error: data.detail || "Delete failed" };
+    }
+    return { success: true };
+}
