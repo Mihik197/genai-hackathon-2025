@@ -101,4 +101,77 @@ def get_analysis_by_id(analysis_id: str):
         return None
 
 
+def init_investment_strategies_table():
+    with get_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS investment_strategies (
+                id TEXT PRIMARY KEY,
+                ticker_or_sector TEXT NOT NULL,
+                risk_tolerance TEXT NOT NULL,
+                investment_horizon TEXT NOT NULL,
+                focus_areas TEXT,
+                strategy_name TEXT,
+                strategy_json TEXT,
+                processing_time REAL,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+
+def save_investment_strategy(
+    strategy_id: str,
+    ticker_or_sector: str,
+    risk_tolerance: str,
+    investment_horizon: str,
+    focus_areas: str | None,
+    strategy_name: str,
+    strategy_json: str,
+    processing_time: float
+):
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO investment_strategies (
+                id, ticker_or_sector, risk_tolerance, investment_horizon,
+                focus_areas, strategy_name, strategy_json, processing_time, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            strategy_id,
+            ticker_or_sector,
+            risk_tolerance,
+            investment_horizon,
+            focus_areas,
+            strategy_name,
+            strategy_json,
+            processing_time,
+            datetime.utcnow().isoformat()
+        ))
+
+
+def get_investment_strategies(limit: int = 10):
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT id, ticker_or_sector, strategy_name, risk_tolerance,
+                   investment_horizon, processing_time, created_at
+            FROM investment_strategies
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_investment_strategy_by_id(strategy_id: str):
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT * FROM investment_strategies WHERE id = ?
+        """, (strategy_id,)).fetchone()
+        if row:
+            result = dict(row)
+            if result.get("strategy_json"):
+                result["strategy_output"] = json.loads(result["strategy_json"])
+            return result
+        return None
+
+
 init_db()
+init_investment_strategies_table()
+
