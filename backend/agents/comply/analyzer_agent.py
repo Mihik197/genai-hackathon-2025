@@ -1,5 +1,18 @@
+import re
 from google.adk.agents import LlmAgent
 from schemas.agent_outputs import SinglePolicyAnalysis
+
+
+def sanitize_name(name: str) -> str:
+    """Sanitize a name to be a valid Python identifier for ADK agent names."""
+    # Remove .pdf extension
+    name = name.replace('.pdf', '')
+    # Replace spaces and invalid chars with underscores
+    name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
+    # Ensure it starts with a letter or underscore
+    if name and name[0].isdigit():
+        name = '_' + name
+    return name
 
 
 def create_policy_analyzer(policy_name: str) -> LlmAgent:
@@ -15,56 +28,45 @@ def create_policy_analyzer(policy_name: str) -> LlmAgent:
     Returns:
         LlmAgent configured to analyze the specific policy
     """
+    safe_name = sanitize_name(policy_name)
+    
     return LlmAgent(
-        name=f"AnalyzerAgent_{policy_name.replace('.pdf', '').replace(' ', '_')}",
-        model="gemini-2.5-flash",
+        name=f"AnalyzerAgent_{safe_name}",
+        model="gemini-3-flash-preview",
         description=f"Analyzes {policy_name} against RBI regulation for compliance gaps.",
-        instruction=f"""You are a senior compliance analyst for HDFC Bank.
+        instruction=f"""You are a compliance analyst for HDFC Bank.
 
-Your task: Compare the RBI regulation against the bank policy "{policy_name}" and identify:
-1. GAPS - Areas where the bank policy doesn't meet the RBI regulation requirements
-2. COMPLIANT - Areas where the bank already meets or exceeds requirements  
-3. ACTION_ITEMS - Specific changes needed to achieve compliance
+Your task: Compare the RBI regulation against bank policy "{policy_name}" and identify ONLY:
+1. GAPS - Where the policy doesn't meet RBI requirements
+2. ACTION_ITEMS - Specific changes needed
 
-Context available from previous agents:
-- categories_result: Contains regulation info (title, reference, summary)
-- policies_result: Contains list of all bank policies (you're analyzing one of them)
+You are provided with TWO PDF documents:
+1. FIRST PDF: RBI regulation/circular
+2. SECOND PDF: Bank policy "{policy_name}"
 
-You will receive:
-- The RBI regulation PDF (already provided in the conversation)
-- The bank policy PDF (load from the file path in policies_result for "{policy_name}")
+For each GAP (keep concise):
+- id: GAP-001, GAP-002, etc.
+- requirement: Brief RBI requirement statement
+- current_state: Current policy state or "Not addressed"
+- affected_section: Policy section needing update (if known)
+- action_required: What needs to change
+- priority: HIGH/MEDIUM/LOW
+- deadline_recommended: e.g., "30 days", "90 days"
 
-For EACH gap found:
-- Specific RBI requirement
-- Current state in bank policy (or "Not addressed")
-- Section in policy that needs update
-- Recommended action
-- Priority (HIGH/MEDIUM/LOW) based on regulatory risk
-- Deadline recommendation
+For each ACTION_ITEM:
+- id: ACTION-001, ACTION-002, etc.
+- description: What needs to be done (1-2 sentences)
+- owner_team: Compliance, IT, Legal, Operations, etc.
+- priority: HIGH/MEDIUM/LOW
+- estimated_effort: Low/Medium/High
+- related_gap_ids: Which gaps this addresses
 
-For EACH compliant item:
-- RBI requirement met
-- How/where it's currently implemented
-- Reference section
+Set compliance_status: COMPLIANT (no gaps), PARTIALLY_COMPLIANT (some gaps), NON_COMPLIANT (critical gaps)
+Set risk_level: LOW, MEDIUM, or HIGH
 
-Generate action items with:
-- Clear description
-- Owner team (Compliance, IT, Legal, Operations, etc.)
-- Priority and estimated effort
-- Related gap IDs
-
-Assess overall compliance status for THIS POLICY:
-- COMPLIANT: All requirements met
-- PARTIALLY_COMPLIANT: Some gaps exist
-- NON_COMPLIANT: Major gaps or critical requirements missing
-
-Assess risk level: LOW, MEDIUM, or HIGH based on:
-- Number and severity of gaps
-- Regulatory penalties for non-compliance
-- Time to remediate
-
-Be thorough but precise. Only flag actual gaps, not theoretical concerns.
+DO NOT include compliant items - only output gaps and actions needed.
+Be concise. Keep descriptions short.
 """,
         output_schema=SinglePolicyAnalysis,
-        output_key=f"analysis_{policy_name.replace('.pdf', '').replace(' ', '_')}",
+        output_key=f"analysis_{safe_name}",
     )

@@ -67,18 +67,6 @@ class Gap(BaseModel):
     )
 
 
-class CompliantItem(BaseModel):
-    """An item where bank policy already meets RBI requirements"""
-    id: str = Field(description="Unique item identifier (e.g., COMP-001)")
-    requirement: str = Field(description="RBI requirement")
-    current_state: str = Field(
-        description="How bank policy currently addresses this"
-    )
-    reference_section: Optional[str] = Field(
-        default=None,
-        description="Section in bank policy where this is implemented"
-    )
-
 
 class ActionItem(BaseModel):
     """Actionable task to achieve compliance"""
@@ -106,10 +94,6 @@ class SinglePolicyAnalysis(BaseModel):
         default_factory=list,
         description="Gaps found in this policy"
     )
-    compliant_items: list[CompliantItem] = Field(
-        default_factory=list,
-        description="Items where policy is compliant"
-    )
     action_items: list[ActionItem] = Field(
         default_factory=list,
         description="Actions needed for this policy"
@@ -119,8 +103,4 @@ class SinglePolicyAnalysis(BaseModel):
     )
     risk_level: str = Field(
         description="Risk assessment: LOW, MEDIUM, or HIGH"
-    )
-    notes: Optional[str] = Field(
-        default=None,
-        description="Additional notes or observations"
     )

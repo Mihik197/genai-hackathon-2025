@@ -1,0 +1,13 @@
+- It is December 2025 as of now
+- Always refer to the latest documentation. Do not hallucinate deprecated APIs. Prefer looking up documentation of languages/frameworks/apis online.
+- Write clean, maintainable code
+- Do not overuse overly defensive try-except statements everywhere. Only use them where truly needed
+- When building frontends, do not use generic typography and iconography (e.g. lucide-react). Use beautiful typography and icons
+- When building frontends, create beautiful, responsive interfaces with great UX.
+- Write modular code. Remember the DRY principles
+- links to some important documentations:
+    - google-genai library (google-generativeai has been deprecated): https://ai.google.dev/gemini-api/docs/llms.txt
+    - google agent development kit (ADK): https://google.github.io/adk-docs/llms.txt
+- When integrating LLMs in our project, we will mainly be using one of these three depending on the use case: 'gemini-3-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'
+- no emojis please
+- do not write unnecessary comments

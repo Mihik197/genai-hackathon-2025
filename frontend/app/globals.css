@@ -1,26 +1,81 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Stripe-inspired Palette */
+  --primary: #635BFF;
+  /* Stripe Blurple */
+  --primary-hover: #5851DF;
+
+  --background: #f6f9fc;
+  /* Light Gray Dashboard Background */
+  --surface: #ffffff;
+  /* White Card Background */
+
+  --text-main: #0A2540;
+  /* Dark Slate for Headings */
+  --text-muted: #425466;
+  /* Muted Blue-Gray for body text */
+  --text-light: #fff;
+  /* Light text on dark backgrounds */
+
+  --border: #e6ebf1;
+  /* Subtle borders */
+
+  /* Module Colors */
+  --color-shield: #ef4444;
+  /* Red for Fraud */
+  --color-advisor: #10b981;
+  /* Emerald for Investment */
+  --color-inclusion: #3b82f6;
+  /* Blue for Credit */
+  --color-comply: #8b5cf6;
+  /* Violet for Compliance */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+
+  --color-surface: var(--surface);
+
+  --color-text-main: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --color-text-light: var(--text-light);
+
+  --color-border: var(--border);
+
+  --color-shield: var(--color-shield);
+  --color-advisor: var(--color-advisor);
+  --color-inclusion: var(--color-inclusion);
+  --color-comply: var(--color-comply);
+
+  --font-sans: var(--font-inter);
+
+  --shadow-stripe: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02), 0 10px 15px -3px rgba(50, 50, 93, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+  --animate-loading-bar: loading-bar 2s infinite ease-in-out;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  50% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(100%);
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--background);
+  color: var(--text-main);
+  font-family: var(--font-inter), sans-serif;
+  -webkit-font-smoothing: antialiased;
 }

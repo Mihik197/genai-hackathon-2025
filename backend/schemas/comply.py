@@ -19,18 +19,12 @@ class Gap(BaseModel):
     id: str
     requirement: str
     current_state: str
-    affected_policy: str
+    affected_policy: Optional[str] = None
     affected_section: Optional[str] = None
     action_required: str
     priority: Priority
     deadline_recommended: Optional[str] = None
 
-
-class CompliantItem(BaseModel):
-    id: str
-    requirement: str
-    current_state: str
-    affected_policy: str
 
 
 class ActionItem(BaseModel):
@@ -51,15 +45,13 @@ class RegulationInfo(BaseModel):
 class AnalysisSummary(BaseModel):
     total_requirements_checked: int
     gaps_found: int
-    compliant_items: int
-    partially_compliant: int
+    action_items_count: int
 
 
 class ComplianceReport(BaseModel):
     regulation_info: RegulationInfo
     analysis_summary: AnalysisSummary
     gaps: list[Gap]
-    compliant_items: list[CompliantItem]
     action_items: list[ActionItem]
     overall_compliance_status: ComplianceStatus
     risk_assessment: str

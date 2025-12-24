@@ -12,7 +12,7 @@ POLICY_CATEGORIES = [
 
 router_agent = LlmAgent(
     name="RouterAgent",
-    model="gemini-2.5-flash",
+    model="gemini-2.5-flash-lite",
     description="Categorizes incoming RBI regulations into policy domains.",
     instruction=f"""You are a regulatory classification specialist for Indian banking.
 

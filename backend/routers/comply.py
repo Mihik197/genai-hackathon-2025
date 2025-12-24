@@ -1,17 +1,24 @@
 import time
 import tempfile
 import json
+import uuid
+import logging
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.adk.agents import ParallelAgent
+from google.adk.events import Event, EventActions
 from google.genai import types
 
 from agents.comply import root_agent
 from agents.comply.analyzer_agent import create_policy_analyzer
 from agents.comply.aggregator_agent import aggregator_agent
+from agents.comply.retriever_agent import get_policies_for_categories
 from schemas.comply import AnalyzeResponse, ComplianceReport
+from database import save_analysis, get_analyses, get_analysis_by_id
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 router = APIRouter(prefix="/api/v1/comply", tags=["Compliance"])
 
@@ -33,6 +40,7 @@ async def analyze_regulation(file: UploadFile = File(...)):
     Returns a compliance report with gaps, compliant items, and action items.
     """
     start_time = time.time()
+    logger.info(f"[STEP 0] Received file: {file.filename}")
     
     # Validate file type
     if not file.filename.endswith('.pdf'):
@@ -45,12 +53,14 @@ async def analyze_regulation(file: UploadFile = File(...)):
             content = await file.read()
             tmp.write(content)
             tmp_path = tmp.name
+        logger.info(f"[STEP 1] Saved temp file: {tmp_path} ({len(content)} bytes)")
         
         # Create a new session for this analysis
         session = await session_service.create_session(
             app_name="finguard",
             user_id="compliance_user"
         )
+        logger.info(f"[STEP 2] Created session: {session.id}")
         
         # STEP 1 & 2: Run Router + Retriever pipeline
         pipeline_runner = Runner(
@@ -64,17 +74,14 @@ async def analyze_regulation(file: UploadFile = File(...)):
             pdf_content = f.read()
         
         # Create the input message with the PDF as a file part
-        # Gemini 2.5 Flash can process PDFs natively with 1M token context
         input_content = types.Content(
             parts=[
                 types.Part.from_bytes(data=pdf_content, mime_type="application/pdf"),
-                types.Part.from_text(
-                    f"Analyze this RBI regulation document (filename: {file.filename}) "
-                    "for compliance with HDFC Bank policies."
-                )
+                types.Part(text=f"Analyze this regulation document (filename: {file.filename}) for compliance with HDFC Bank policies.")
             ]
         )
         
+        logger.info("[STEP 3] Running Router + Retriever pipeline...")
         # Run the router + retriever pipeline
         async for event in pipeline_runner.run_async(
             user_id="compliance_user",
@@ -82,6 +89,7 @@ async def analyze_regulation(file: UploadFile = File(...)):
             new_message=input_content
         ):
             pass  # Let it complete
+        logger.info("[STEP 3] Router + Retriever pipeline complete")
         
         # Get the current session to access state
         current_session = await session_service.get_session(
@@ -90,82 +98,185 @@ async def analyze_regulation(file: UploadFile = File(...)):
             session_id=session.id
         )
         
-        # STEP 3: Parse policies_result to create parallel analyzers
-        policies_data = current_session.state.get('policies_result')
-        if isinstance(policies_data, str):
-            policies_info = json.loads(policies_data)
-        else:
-            policies_info = policies_data
-            
-        policies_found = policies_info.get('policies_found', [])
+        # DEBUG: Log all state keys
+        logger.info(f"[DEBUG] Session state keys: {list(current_session.state.keys())}")
+        categories_data = current_session.state.get('categories_result')
+        logger.info(f"[DEBUG] categories_result: {categories_data}")
         
-        if not policies_found:
+        if not categories_data:
             return AnalyzeResponse(
                 success=False,
-                error="No bank policies found for the identified categories",
+                error="Could not categorize the regulation document",
                 processing_time_seconds=time.time() - start_time
             )
         
-        # Create one analyzer agent per policy
-        analyzer_agents = []
+        # Parse categories - handle both dict and JSON string
+        if isinstance(categories_data, str):
+            categories_info = json.loads(categories_data)
+        else:
+            categories_info = categories_data
+        
+        categories = categories_info.get('categories', [])
+        logger.info(f"[STEP 4] Categories identified: {categories}")
+        
+        if not categories:
+            return AnalyzeResponse(
+                success=False,
+                error="No policy categories identified in the regulation",
+                processing_time_seconds=time.time() - start_time
+            )
+        
+        # STEP 4: Call policy lookup directly (bypassing RetrieverAgent)
+        logger.info(f"[STEP 4] Looking up policies for categories: {categories}")
+        policies_found = get_policies_for_categories(categories)
+        logger.info(f"[STEP 4] Found {len(policies_found)} policies to analyze")
+        
+        if not policies_found:
+            logger.warning("[STEP 4] No policies found, returning early")
+            return AnalyzeResponse(
+                success=False,
+                error=f"No bank policies found for categories: {categories}",
+                processing_time_seconds=time.time() - start_time
+            )
+        
+        # Store policies_result in session state for aggregator to access
+        # We need to update the session state manually since we bypassed RetrieverAgent
+        policies_result_data = {
+            "categories_analyzed": categories,
+            "policies_found": policies_found,
+            "total_policies": len(policies_found)
+        }
+        
+        # Inject policies_result into session state using append_event
+        current_session = await session_service.get_session(
+            app_name="finguard",
+            user_id="compliance_user",
+            session_id=session.id
+        )
+        state_update_event = Event(
+            invocation_id=session.id,
+            author="system",
+            actions=EventActions(state_delta={"policies_result": policies_result_data})
+        )
+        await session_service.append_event(session=current_session, event=state_update_event)
+        logger.info(f"[STEP 4] Stored policies_result in session state")
+        
+        # Track which analysis keys will be created
+        analysis_keys = []
+        
+        # Run each analyzer sequentially with both PDFs
         for policy in policies_found:
             policy_name = policy['file_name']
+            policy_path = policy['file_path']
+            logger.info(f"[STEP 5] Analyzing policy: {policy_name}")
+            
+            # Read the bank policy PDF
+            with open(policy_path, "rb") as f:
+                bank_policy_content = f.read()
+            
+            # Create analyzer for this specific policy
             analyzer = create_policy_analyzer(policy_name)
-            analyzer_agents.append(analyzer)
-        
-        # Run analyzers in parallel
-        if len(analyzer_agents) > 1:
-            parallel_analyzer = ParallelAgent(
-                name="ParallelPolicyAnalyzers",
-                sub_agents=analyzer_agents
-            )
+            # Track the output_key that will be used
+            analysis_keys.append(analyzer.output_key)
+            
             analyzer_runner = Runner(
-                agent=parallel_analyzer,
+                agent=analyzer,
                 app_name="finguard",
                 session_service=session_service
             )
-        else:
-            # Just one policy
-            analyzer_runner = Runner(
-                agent=analyzer_agents[0],
-                app_name="finguard",
-                session_service=session_service
+            
+            # Create input with BOTH PDFs: RBI regulation + bank policy
+            analyzer_input = types.Content(
+                parts=[
+                    types.Part.from_bytes(data=pdf_content, mime_type="application/pdf"),
+                    types.Part.from_bytes(data=bank_policy_content, mime_type="application/pdf"),
+                    types.Part(text=f"""Compare these two documents:
+1. FIRST PDF: RBI Regulation - {file.filename}
+2. SECOND PDF: Bank Policy - {policy_name}
+
+Analyze the bank policy against the RBI regulation requirements and identify gaps, compliant items, and action items.""")
+                ]
             )
+            
+            async for event in analyzer_runner.run_async(
+                user_id="compliance_user",
+                session_id=session.id,
+                new_message=analyzer_input
+            ):
+                pass
+            logger.info(f"[STEP 5] Completed analysis for: {policy_name}")
         
-        # Run the analyzers (they'll read from session state)
-        async for event in analyzer_runner.run_async(
-            user_id="compliance_user",
-            session_id=session.id,
-            new_message=types.Content(parts=[types.Part.from_text("Analyze the policies.")])
-        ):
-            pass
+        logger.info("[STEP 5] All policy analyzers complete")
+        logger.info(f"[STEP 5] Analysis keys created: {analysis_keys}")
         
-        # STEP 4: Run aggregator to combine results
+        # STEP 6: Run aggregator to combine results
+        logger.info("[STEP 6] Running aggregator...")
         aggregator_runner = Runner(
             agent=aggregator_agent,
             app_name="finguard",
             session_service=session_service
         )
         
-        result = None
+        # Build explicit guidance about which keys to aggregate
+        analysis_keys_str = ", ".join(analysis_keys)
+        aggregator_input = types.Content(
+            parts=[types.Part(text=f"""Aggregate the analysis results from the session state.
+
+The following session state keys contain the data you need:
+- categories_result: Regulation info (title, reference, summary, categories)
+- policies_result: List of policies that were analyzed
+- Analysis results: {analysis_keys_str}
+
+Read each analysis key and combine all gaps, compliant items, and action items into a single comprehensive compliance report.""")]
+        )
+        
         async for event in aggregator_runner.run_async(
             user_id="compliance_user",
             session_id=session.id,
-            new_message=types.Content(parts=[types.Part.from_text("Aggregate the analysis results.")])
+            new_message=aggregator_input
         ):
-            # Capture the final compliance report from state
-            if hasattr(event, 'state') and 'compliance_report' in event.state:
-                result = event.state['compliance_report']
+            pass  # Let it complete
+        
+        # Get the result from session state (output_key stores it there)
+        final_session = await session_service.get_session(
+            app_name="finguard",
+            user_id="compliance_user",
+            session_id=session.id
+        )
+        logger.info(f"[STEP 6] Final state keys: {list(final_session.state.keys())}")
+        result = final_session.state.get('compliance_report')
+        logger.info(f"[STEP 6] Aggregator complete. Result exists: {result is not None}")
         
         # Parse the result into our schema
         if result:
-            report = ComplianceReport.model_validate_json(result)
+            logger.info("[STEP 7] Parsing and saving report...")
+            # Result is a dict from ADK, use model_validate (not model_validate_json)
+            report = ComplianceReport.model_validate(result)
+            processing_time = time.time() - start_time
+            
+            # Save to database - convert dict to JSON string for storage
+            analysis_id = str(uuid.uuid4())
+            report_json_str = json.dumps(result) if isinstance(result, dict) else result
+            save_analysis(
+                analysis_id=analysis_id,
+                filename=file.filename,
+                regulation_title=report.regulation_info.title,
+                regulation_reference=report.regulation_info.reference,
+                overall_status=report.overall_compliance_status.value,
+                gaps_count=len(report.gaps),
+                action_items_count=len(report.action_items),
+                processing_time=processing_time,
+                report_json=report_json_str
+            )
+            logger.info(f"[STEP 7] Analysis complete in {processing_time:.2f}s")
+            
             return AnalyzeResponse(
                 success=True,
                 report=report,
-                processing_time_seconds=time.time() - start_time
+                processing_time_seconds=processing_time
             )
         else:
+            logger.warning("[STEP 7] No result from aggregator")
             return AnalyzeResponse(
                 success=False,
                 error="No compliance report generated",
@@ -173,6 +284,7 @@ async def analyze_regulation(file: UploadFile = File(...)):
             )
             
     except Exception as e:
+        logger.error(f"[ERROR] Analysis failed: {e}", exc_info=True)
         return AnalyzeResponse(
             success=False,
             error=str(e),
@@ -199,9 +311,16 @@ async def list_categories():
 
 
 @router.get("/history")
-async def get_analysis_history():
+async def get_analysis_history(limit: int = 10):
     """Get history of previous compliance analyses."""
-    # TODO: Implement with database
-    return {
-        "analyses": []
-    }
+    analyses = get_analyses(limit)
+    return {"analyses": analyses}
+
+
+@router.get("/history/{analysis_id}")
+async def get_single_analysis(analysis_id: str):
+    """Get a single analysis by ID, including full report."""
+    analysis = get_analysis_by_id(analysis_id)
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return analysis

@@ -1,6 +1,14 @@
 from pathlib import Path
+import logging
 from google.adk.agents import LlmAgent
 from schemas.agent_outputs import RetrieverOutput
+
+logger = logging.getLogger(__name__)
+
+# Use absolute path - this file is at backend/agents/comply/retriever_agent.py
+# So we go up 3 levels to get to backend/, then into data/bank_policies/
+BASE_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "bank_policies"
+logger.info(f"[RETRIEVER] BASE_PATH resolved to: {BASE_PATH}")
 
 
 def list_policy_files(category: str) -> list[dict]:
@@ -12,19 +20,24 @@ def list_policy_files(category: str) -> list[dict]:
     Returns:
         List of dicts with file_name and file_path for each policy document
     """
-    base_path = Path(__file__).parent.parent.parent / "data" / "bank_policies" / category
+    category_path = BASE_PATH / category
+    logger.info(f"[RETRIEVER] Looking for policies in: {category_path}")
+    logger.info(f"[RETRIEVER] Path exists: {category_path.exists()}")
     
-    if not base_path.exists():
+    if not category_path.exists():
+        logger.warning(f"[RETRIEVER] Category path does not exist: {category_path}")
         return []
     
     policies = []
-    for pdf_file in base_path.glob("*.pdf"):
+    for pdf_file in category_path.glob("*.pdf"):
+        logger.info(f"[RETRIEVER] Found policy file: {pdf_file.name}")
         policies.append({
             "file_name": pdf_file.name,
             "file_path": str(pdf_file.absolute()),
             "category": category
         })
     
+    logger.info(f"[RETRIEVER] Total policies found in {category}: {len(policies)}")
     return policies
 
 
@@ -37,11 +50,13 @@ def get_policies_for_categories(categories: list[str]) -> list[dict]:
     Returns:
         List of all policy file dicts across all requested categories
     """
+    logger.info(f"[RETRIEVER] get_policies_for_categories called with: {categories}")
     all_policies = []
     for category in categories:
         policies = list_policy_files(category)
         all_policies.extend(policies)
     
+    logger.info(f"[RETRIEVER] Total policies across all categories: {len(all_policies)}")
     return all_policies
 
 
