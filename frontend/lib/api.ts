@@ -64,27 +64,6 @@ export interface AnalysisHistoryResponse {
 
 const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
 
-export async function analyzeRegulation(file: File): Promise<AnalyzeResponse> {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch(`${API_BASE_URL}/comply/analyze`, {
-        method: "POST",
-        body: formData,
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return {
-            success: false,
-            error: errorData.detail || `Upload failed with status ${response.status}`,
-            processing_time_seconds: 0,
-        };
-    }
-
-    return await response.json();
-}
-
 export async function getAnalysisHistory(): Promise<AnalysisHistoryResponse> {
     const response = await fetch(`${API_BASE_URL}/comply/history`);
     if (!response.ok) {
