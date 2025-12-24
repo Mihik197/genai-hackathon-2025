@@ -67,8 +67,8 @@ export function ComplianceReport({ report }: ComplianceReportProps) {
 
                 <div className="space-y-4">
                     {gaps.length > 0 ? (
-                        gaps.map((gap) => (
-                            <GapCard key={gap.id} gap={gap} />
+                        gaps.map((gap, index) => (
+                            <GapCard key={`${gap.id}-${index}`} gap={gap} />
                         ))
                     ) : (
                         <Card className="flex flex-col items-center justify-center py-12 bg-emerald-50/30 border-dashed border-emerald-200">
@@ -98,8 +98,8 @@ export function ComplianceReport({ report }: ComplianceReportProps) {
                                     <div className="flex gap-2 mt-2">
                                         <span className="text-xs px-2 py-0.5 bg-gray-100 rounded">{item.owner_team}</span>
                                         <span className={`text-xs px-2 py-0.5 rounded ${item.priority === "HIGH" ? "bg-red-100 text-red-700" :
-                                                item.priority === "MEDIUM" ? "bg-amber-100 text-amber-700" :
-                                                    "bg-green-100 text-green-700"
+                                            item.priority === "MEDIUM" ? "bg-amber-100 text-amber-700" :
+                                                "bg-green-100 text-green-700"
                                             }`}>{item.priority}</span>
                                     </div>
                                 </div>
