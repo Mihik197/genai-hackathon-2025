@@ -72,35 +72,43 @@ async def generate_strategy(request: StrategyRequest):
             
             focus_text = f"\nAdditional focus: {request.focus_areas}" if request.focus_areas else ""
             
+            
             input_message = f"""Generate an investment strategy with the following parameters:
 
 Ticker/Sector: {request.ticker_or_sector}
 Risk Tolerance: {request.risk_tolerance}
 Investment Horizon: {horizon_text[request.investment_horizon]}
-{focus_text}
+Focusing on Aspect (if any, else none): {focus_text}
 
-Please proceed through all 4 steps:
-1. Gather market data analysis using Google Search
-2. Develop 3-5 trading strategies
-3. Create detailed execution plan
-4. Evaluate overall risk
+Please proceed through all 5 steps:
+1. Gather raw market data (data_search_agent)
+2. Format data into JSON (data_format_agent)
+3. Develop 3-5 trading strategies (trading_analyst)
+4. Create detailed execution plan (execution_analyst)
+5. Evaluate overall risk (risk_analyst)
 
-Return the complete investment strategy."""
+Confirm when done."""
 
             input_content = types.Content(
                 parts=[types.Part(text=input_message)]
             )
             
-            current_step = "data_analyst"
-            step_order = ["data_analyst", "trading_analyst", "execution_analyst", "risk_analyst"]
+            current_step = "data_search_agent"
+            step_order = ["data_search_agent", "data_format_agent", "trading_analyst", "execution_analyst", "risk_analyst"]
             step_messages = {
-                "data_analyst": "Analyzing market data and news...",
+                "data_search_agent": "Searching for market data and news...",
+                "data_format_agent": "Structuring and analyzing market data...",
                 "trading_analyst": "Generating trading strategies...",
                 "execution_analyst": "Creating execution plan...",
                 "risk_analyst": "Evaluating risk profile..."
             }
             
             final_output = None
+            
+            # Emit initial running state for the first step
+            yield emit("progress", step=current_step, status="running",
+                      message=step_messages[current_step], 
+                      current=1, total=5)
             
             async for event in runner.run_async(
                 user_id="invest_user",
@@ -118,7 +126,7 @@ Return the complete investment strategy."""
                             step_idx = step_order.index(step) + 1
                             yield emit("progress", step=step, status="running",
                                       message=step_messages[step], 
-                                      current=step_idx, total=4)
+                                      current=step_idx, total=5)
                             break
                     
                     if hasattr(event, 'content') and event.content:

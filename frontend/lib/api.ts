@@ -223,3 +223,208 @@ export async function deletePolicy(category: string, filename: string): Promise<
     }
     return { success: true };
 }
+
+// Investment Strategy Types
+export interface StrategyRequest {
+    ticker_or_sector: string;
+    risk_tolerance: "conservative" | "moderate" | "aggressive";
+    investment_horizon: "short" | "medium" | "long";
+    focus_areas?: string;
+}
+
+export interface NewsItem {
+    headline: string;
+    source: string;
+    date?: string;
+    relevance: string;
+}
+
+export interface MarketDataAnalysis {
+    ticker_or_sector: string;
+    report_date: string;
+    executive_summary: string[];
+    sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
+    sentiment_reasoning: string;
+    recent_news: NewsItem[];
+    key_risks: string[];
+    key_opportunities: string[];
+    analyst_ratings_summary?: string;
+    sources_count: number;
+}
+
+export interface TradingStrategyItem {
+    strategy_name: string;
+    description: string;
+    profile_alignment: string;
+    key_indicators: string[];
+    entry_conditions: string;
+    exit_conditions: string;
+    specific_risks: string[];
+    is_recommended: boolean;
+}
+
+export interface TradingStrategies {
+    ticker_or_sector: string;
+    risk_tolerance: string;
+    investment_horizon: string;
+    strategies: TradingStrategyItem[];
+    overall_approach: string;
+}
+
+export interface StrategyExecution {
+    strategy_name: string;
+    order_types: string;
+    position_sizing: string;
+    entry_method: string;
+    stop_loss: string;
+    take_profit: string;
+    management: string;
+}
+
+export interface ExecutionPlan {
+    general_principles: string[];
+    risk_management_approach: string;
+    cost_control_measures: string;
+    monitoring_frequency: string;
+    strategy_executions: StrategyExecution[];
+}
+
+export interface StrategyRisk {
+    strategy_name: string;
+    risk_level: "LOW" | "MEDIUM" | "HIGH";
+    key_risks: string[];
+}
+
+export interface RiskAssessment {
+    overall_risk_level: "LOW" | "MEDIUM" | "HIGH";
+    risk_summary: string[];
+    market_risks: string[];
+    strategy_risks: StrategyRisk[];
+    execution_risks: string[];
+    alignment_status: "ALIGNED" | "PARTIALLY_ALIGNED" | "MISALIGNED";
+    alignment_explanation: string;
+    mitigation_recommendations: string[];
+}
+
+export interface InvestmentStrategy {
+    id: string;
+    strategy_name: string;
+    ticker_or_sector: string;
+    risk_tolerance: string;
+    investment_horizon: string;
+    market_analysis: MarketDataAnalysis;
+    trading_strategies: TradingStrategies;
+    execution_plan: ExecutionPlan;
+    risk_assessment: RiskAssessment;
+    processing_time: number;
+    disclaimer: string;
+}
+
+export interface StrategyHistoryItem {
+    id: string;
+    ticker_or_sector: string;
+    strategy_name: string;
+    risk_tolerance: string;
+    investment_horizon: string;
+    processing_time: number;
+    created_at: string;
+}
+
+export interface InvestProgressEvent {
+    type: "progress" | "complete" | "error";
+    step?: string;
+    status?: "running" | "complete";
+    message?: string;
+    current?: number;
+    total?: number;
+    strategy?: InvestmentStrategy;
+    processing_time?: number;
+}
+
+
+export async function generateStrategyStream(
+    request: StrategyRequest,
+    onProgress: (event: InvestProgressEvent) => void
+): Promise<{ success: boolean; strategy?: InvestmentStrategy; error?: string }> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/invest/generate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(request),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return {
+                success: false,
+                error: errorData.detail || `Request failed with status ${response.status}`,
+            };
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+            return { success: false, error: "No response body" };
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let finalStrategy: InvestmentStrategy | undefined;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                if (line.trim()) {
+                    try {
+                        const event: InvestProgressEvent = JSON.parse(line);
+                        onProgress(event);
+
+                        if (event.type === "complete" && event.strategy) {
+                            finalStrategy = event.strategy;
+                        }
+                        if (event.type === "error") {
+                            return {
+                                success: false,
+                                error: event.message || "Strategy generation failed",
+                            };
+                        }
+                    } catch {
+                        // Skip malformed JSON
+                    }
+                }
+            }
+        }
+
+        if (finalStrategy) {
+            return { success: true, strategy: finalStrategy };
+        }
+
+        return { success: false, error: "No strategy received" };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Network error",
+        };
+    }
+}
+
+export async function getStrategyHistory(): Promise<{ strategies: StrategyHistoryItem[] }> {
+    const response = await fetch(`${API_BASE_URL}/invest/history`);
+    if (!response.ok) {
+        return { strategies: [] };
+    }
+    return await response.json();
+}
+
+export async function getStrategyById(id: string): Promise<{ strategy_output?: InvestmentStrategy } | null> {
+    const response = await fetch(`${API_BASE_URL}/invest/history/${id}`);
+    if (!response.ok) {
+        return null;
+    }
+    return await response.json();
+}

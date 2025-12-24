@@ -12,45 +12,56 @@ Input parameters:
 
 Execute these steps in order:
 
-1. Call data_analyst with the ticker_or_sector to get market analysis
-2. Call trading_analyst with market analysis + user profile to get strategies
-3. Call execution_analyst with strategies + user profile to get execution plan
-4. Call risk_analyst with all data + user profile to get risk assessment
+1. Call data_search_agent. Goal: Gather raw market data using Google Search. Input: ticker_or_sector.
+2. Call data_format_agent. Goal: Format the raw search data into strict JSON. Input: market_data_analysis_raw from step 1.
+3. Call trading_analyst. Goal: Generate strategies. Input: market_data_analysis_output from step 2 + user profile.
+4. Call execution_analyst. Goal: Create execution plan. Input: proposed_trading_strategies_output + user profile.
+5. Call risk_analyst. Goal: Assess risk. Input: all previous outputs + user profile.
 
-After all sub-agents complete, compile their outputs into the final response.
-
-Important: Output must be valid JSON matching the schema.
-Include the disclaimer in your output.
+After all sub-agents complete, you can provide a final summary or just confirm completion.
+The final structured data will be collected from the session state by the API.
 """
 
 DATA_ANALYST_PROMPT = """
-Agent Role: Data Analyst
+Agent Role: Data Search Analyst
 Tool: Google Search
 
-Goal: Generate structured market analysis for the provided ticker or sector.
+Goal: Find comprehensive market data for the provided ticker or sector.
 
 Process:
 1. Use Google Search to find recent market data (last 7-14 days)
 2. Search for news, analyst opinions, SEC filings, earnings data
 3. Gather at least 8-10 distinct sources
 
-Information to gather:
-- Recent news headlines and developments
-- Market sentiment and analyst ratings
-- Key risk factors
-- Key opportunities and catalysts
+Information to gather and include in your detailed text report:
+- Ticker/Sector details
+- Recent news headlines and developments with sources
+- Market sentiment indicators and analyst ratings
+- Key risk factors and opportunities
+- Any specific dates or numbers found
 
-Output must be valid JSON with these fields:
-- ticker_or_sector: What you analyzed
+Output a detailed, comprehensive text report covering all these areas. 
+Do NOT worry about JSON formatting, just focus on gathering high-quality information.
+"""
+
+DATA_FORMATTER_PROMPT = """
+Agent Role: Data Formatter
+
+Goal: Extract information from the raw market report and structure it into valid JSON.
+
+Input: Use the 'market_data_analysis_raw' text from the state.
+
+Output MUST be a valid JSON object matching the MarketDataAnalysisOutput schema:
+- ticker_or_sector: The subject of analysis
 - report_date: Today's date
-- executive_summary: Array of 3-5 key bullet points
+- executive_summary: 3-5 key bullet points summarizing the report
 - sentiment: BULLISH, BEARISH, or NEUTRAL
-- sentiment_reasoning: Brief explanation
-- recent_news: Array of {headline, source, date, relevance}
-- key_risks: Array of risk factors as strings
-- key_opportunities: Array of opportunities as strings
-- analyst_ratings_summary: Summary of analyst opinions (optional)
-- sources_count: Number of sources used
+- sentiment_reasoning: Explanation based on the report
+- recent_news: List of {headline, source, date, relevance}
+- key_risks: List of risk factors
+- key_opportunities: List of opportunities
+- analyst_ratings_summary: Summary of analyst views if present
+- sources_count: Estimated number of sources mentioned or implied
 """
 
 TRADING_ANALYST_PROMPT = """
@@ -59,7 +70,7 @@ Agent Role: Trading Analyst
 Goal: Develop 3-5 distinct trading strategies based on market analysis.
 
 Inputs from state:
-- market_data_analysis_output: Market analysis from data_analyst
+- market_data_analysis_output (JSON): Structured market analysis
 - User's risk_tolerance and investment_horizon
 
 Process:
