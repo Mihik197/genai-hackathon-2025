@@ -14,7 +14,7 @@ from google.genai import types
 from agents.comply import root_agent
 from agents.comply.analyzer_agent import create_policy_analyzer
 from agents.comply.aggregator_agent import aggregator_agent
-from agents.comply.retriever_agent import get_policies_for_categories, list_policy_files, BASE_PATH as POLICIES_BASE_PATH
+from agents.comply.retriever_agent import get_policies_for_categories
 from schemas.comply import AnalyzeResponse, ComplianceReport
 from database import save_analysis, get_analyses, get_analysis_by_id
 
@@ -293,86 +293,3 @@ async def get_single_analysis(analysis_id: str):
     if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return analysis
-
-
-@router.get("/policies")
-async def list_all_policies():
-    """List all bank policies organized by category."""
-    categories = ["kyc", "lending", "payments", "cybersecurity", "consumer_protection"]
-    result = {}
-    
-    for category in categories:
-        policies = list_policy_files(category)
-        result[category] = {
-            "name": {
-                "kyc": "KYC (Know Your Customer)",
-                "lending": "Retail & Corporate Lending",
-                "payments": "Payments & UPI",
-                "cybersecurity": "Cyber Security",
-                "consumer_protection": "Consumer Protection"
-            }.get(category, category),
-            "policies": [
-                {
-                    "file_name": p["file_name"],
-                    "file_size": Path(p["file_path"]).stat().st_size if Path(p["file_path"]).exists() else 0
-                }
-                for p in policies
-            ]
-        }
-    
-    return result
-
-
-@router.post("/policies/{category}")
-async def upload_policy(category: str, file: UploadFile = File(...)):
-    """Upload a new policy PDF to a category."""
-    valid_categories = ["kyc", "lending", "payments", "cybersecurity", "consumer_protection"]
-    
-    if category not in valid_categories:
-        raise HTTPException(status_code=400, detail=f"Invalid category. Must be one of: {valid_categories}")
-    
-    if not file.filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
-    
-    category_path = POLICIES_BASE_PATH / category
-    category_path.mkdir(parents=True, exist_ok=True)
-    
-    file_path = category_path / file.filename
-    
-    if file_path.exists():
-        raise HTTPException(status_code=400, detail=f"Policy '{file.filename}' already exists in {category}")
-    
-    content = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
-    
-    logger.info(f"[POLICY] Uploaded {file.filename} to {category}")
-    
-    return {
-        "success": True,
-        "message": f"Policy '{file.filename}' uploaded to {category}",
-        "file_name": file.filename,
-        "category": category
-    }
-
-
-@router.delete("/policies/{category}/{filename}")
-async def delete_policy(category: str, filename: str):
-    """Delete a policy from a category."""
-    valid_categories = ["kyc", "lending", "payments", "cybersecurity", "consumer_protection"]
-    
-    if category not in valid_categories:
-        raise HTTPException(status_code=400, detail=f"Invalid category. Must be one of: {valid_categories}")
-    
-    file_path = POLICIES_BASE_PATH / category / filename
-    
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail=f"Policy '{filename}' not found in {category}")
-    
-    file_path.unlink()
-    logger.info(f"[POLICY] Deleted {filename} from {category}")
-    
-    return {
-        "success": True,
-        "message": f"Policy '{filename}' deleted from {category}"
-    }

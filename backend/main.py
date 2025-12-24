@@ -8,6 +8,7 @@ load_dotenv()
 
 # Import routers
 from routers import comply
+from routers import policies
 
 app = FastAPI(
     title="FinGuard AI",
@@ -26,6 +27,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(comply.router)
+app.include_router(policies.router)
 
 
 @app.get("/")
