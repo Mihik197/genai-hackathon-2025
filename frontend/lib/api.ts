@@ -245,6 +245,26 @@ export interface MarketDataAnalysis {
     executive_summary: string[];
     sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
     sentiment_reasoning: string;
+
+    current_price?: number;
+    price_change_percent?: number;
+    market_cap?: number;
+    pe_ratio?: number;
+    forward_pe?: number;
+    week_52_high?: number;
+    week_52_low?: number;
+    beta?: number;
+    dividend_yield?: number;
+
+    analyst_target_low?: number;
+    analyst_target_mean?: number;
+    analyst_target_high?: number;
+    analyst_count?: number;
+    recommendation?: string;
+
+    price_history?: number[];
+    price_dates?: string[];
+
     recent_news: NewsItem[];
     key_risks: string[];
     key_opportunities: string[];
@@ -306,6 +326,36 @@ export interface RiskAssessment {
     mitigation_recommendations: string[];
 }
 
+export interface ChartAnnotation {
+    value: number;
+    label: string;
+}
+
+export interface ChartData {
+    labels?: string[];
+    values: number[];
+    secondary_values?: number[];
+    annotations?: ChartAnnotation[];
+}
+
+export interface ChartMeta {
+    unit?: string;
+    positive_is_good?: boolean;
+}
+
+export interface Visualization {
+    type: "line" | "bar" | "comparison" | "gauge";
+    title: string;
+    description?: string;
+    data: ChartData;
+    meta?: ChartMeta;
+}
+
+export interface VisualizationOutput {
+    visualizations: Visualization[];
+    reasoning: string;
+}
+
 export interface InvestmentStrategy {
     id: string;
     strategy_name: string;
@@ -313,6 +363,7 @@ export interface InvestmentStrategy {
     risk_tolerance: string;
     investment_horizon: string;
     market_analysis: MarketDataAnalysis;
+    visualization_output?: VisualizationOutput;
     trading_strategies: TradingStrategies;
     execution_plan: ExecutionPlan;
     risk_assessment: RiskAssessment;

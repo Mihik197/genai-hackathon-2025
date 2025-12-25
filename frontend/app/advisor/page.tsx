@@ -13,9 +13,12 @@ import {
     type InvestProgressEvent,
     type StrategyRequest,
 } from "@/lib/api";
-import { CircleNotch, ArrowLeft, ClockCounterClockwise, CaretDown, CaretUp, CheckCircle, Clock, Lightning, ChartLineUp, ShieldCheck, Coins, Target, Warning, MagnifyingGlass, FileText } from "@phosphor-icons/react";
+import { CircleNotch, ArrowLeft, ClockCounterClockwise, CaretDown, CaretUp, CheckCircle, Clock, Lightning, ChartLineUp, ShieldCheck, Coins, Target, Warning, MagnifyingGlass, FileText, TrendUp, TrendDown, ChartBar } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { PriceChart } from "@/components/ui/PriceChart";
+import { StatCard, formatMarketCap } from "@/components/ui/StatCard";
+import { DynamicChart } from "@/components/ui/DynamicChart";
 
 type RiskTolerance = "conservative" | "moderate" | "aggressive";
 type InvestmentHorizon = "short" | "medium" | "long";
@@ -63,6 +66,7 @@ export default function AdvisorPage() {
         setProgressSteps({
             data_search_agent: "pending",
             data_format_agent: "pending",
+            visualization_agent: "pending",
             trading_analyst: "pending",
             execution_analyst: "pending",
             risk_analyst: "pending",
@@ -136,7 +140,8 @@ export default function AdvisorPage() {
 
     const stepLabels: Record<string, { label: string; icon: React.ReactNode }> = {
         data_search_agent: { label: "Market Data Search", icon: <MagnifyingGlass size={18} /> },
-        data_format_agent: { label: "Data Analysis & Analysis", icon: <FileText size={18} /> },
+        data_format_agent: { label: "Data Analysis", icon: <FileText size={18} /> },
+        visualization_agent: { label: "Chart Generation", icon: <ChartBar size={18} /> },
         trading_analyst: { label: "Strategy Generation", icon: <Target size={18} /> },
         execution_analyst: { label: "Execution Planning", icon: <Lightning size={18} /> },
         risk_analyst: { label: "Risk Evaluation", icon: <ShieldCheck size={18} /> },
@@ -428,6 +433,75 @@ export default function AdvisorPage() {
                                         </span>
                                     )}
                                 </h3>
+
+                                {strategy.market_analysis.current_price && (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+                                        <StatCard
+                                            label="Current Price"
+                                            value={`$${strategy.market_analysis.current_price.toFixed(2)}`}
+                                            change={strategy.market_analysis.price_change_percent}
+                                        />
+                                        {strategy.market_analysis.market_cap && (
+                                            <StatCard
+                                                label="Market Cap"
+                                                value={formatMarketCap(strategy.market_analysis.market_cap)}
+                                            />
+                                        )}
+                                        {strategy.market_analysis.pe_ratio && (
+                                            <StatCard
+                                                label="P/E Ratio"
+                                                value={strategy.market_analysis.pe_ratio.toFixed(2)}
+                                            />
+                                        )}
+                                        {strategy.market_analysis.week_52_high && (
+                                            <StatCard
+                                                label="52W High"
+                                                value={`$${strategy.market_analysis.week_52_high.toFixed(2)}`}
+                                            />
+                                        )}
+                                        {strategy.market_analysis.week_52_low && (
+                                            <StatCard
+                                                label="52W Low"
+                                                value={`$${strategy.market_analysis.week_52_low.toFixed(2)}`}
+                                            />
+                                        )}
+                                        {strategy.market_analysis.analyst_target_mean && (
+                                            <StatCard
+                                                label="Analyst Target"
+                                                value={`$${strategy.market_analysis.analyst_target_mean.toFixed(2)}`}
+                                                subValue={strategy.market_analysis.recommendation || undefined}
+                                            />
+                                        )}
+                                    </div>
+                                )}
+
+                                {strategy.market_analysis.price_history && strategy.market_analysis.price_dates && !strategy.visualization_output?.visualizations?.length && (
+                                    <div className="mb-6">
+                                        <PriceChart
+                                            prices={strategy.market_analysis.price_history}
+                                            dates={strategy.market_analysis.price_dates}
+                                            currentPrice={strategy.market_analysis.current_price}
+                                            analystTarget={strategy.market_analysis.analyst_target_mean}
+                                            title="3-Month Price History"
+                                        />
+                                    </div>
+                                )}
+
+                                {strategy.visualization_output?.visualizations && strategy.visualization_output.visualizations.length > 0 && (
+                                    <div className="mb-6">
+                                        <h4 className="text-sm font-medium text-text-main mb-3">AI-Generated Visualizations</h4>
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            {strategy.visualization_output.visualizations.map((viz, i) => (
+                                                <DynamicChart key={i} visualization={viz} />
+                                            ))}
+                                        </div>
+                                        {strategy.visualization_output.reasoning && (
+                                            <p className="text-xs text-text-muted mt-2 italic">
+                                                {strategy.visualization_output.reasoning}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
 
                                 {strategy.market_analysis.executive_summary?.length > 0 && (
                                     <div className="mb-4">

@@ -13,4 +13,5 @@ dependencies = [
     "python-multipart>=0.0.21",
     "sqlmodel>=0.0.29",
     "uvicorn>=0.40.0",
+    "yfinance>=1.0",
 ]
