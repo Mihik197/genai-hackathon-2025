@@ -29,6 +29,8 @@ export default function Home() {
   const [prevTranslate, setPrevTranslate] = useState(0);
   const [tickerMessages, setTickerMessages] = useState<string[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   // Generate live ticker messages
@@ -166,6 +168,35 @@ export default function Home() {
     if (activeModule > 0) setActiveModule(activeModule - 1);
   };
 
+  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>, cardIndex: number) => {
+    if (isDragging) return;
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    setMousePosition({ x, y });
+    setHoveredCard(cardIndex);
+  };
+
+  const handleCardMouseLeave = () => {
+    setHoveredCard(null);
+    setMousePosition({ x: 0.5, y: 0.5 });
+  };
+
+  const getCardTransform = (cardIndex: number) => {
+    if (hoveredCard !== cardIndex) return 'perspective(1000px) rotateX(0deg) rotateY(0deg)';
+    const { x, y } = mousePosition;
+    const rotateY = (x - 0.5) * 20;
+    const rotateX = (y - 0.5) * -20;
+    return `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
+  };
+
+  const getGlarePosition = (cardIndex: number) => {
+    if (hoveredCard !== cardIndex) return { x: 50, y: 50 };
+    const { x, y } = mousePosition;
+    return { x: x * 100, y: y * 100 };
+  };
+
   return (
     <DashboardLayout>
       <div className="fixed inset-0 top-16 left-0 right-0 overflow-hidden">
@@ -260,17 +291,53 @@ export default function Home() {
               >
                 {modules.map((module, idx) => {
                   const Icon = module.icon;
+                  const glarePos = getGlarePosition(idx);
+                  const isHovered = hoveredCard === idx;
                   return (
                     <div key={idx} className="min-w-full px-2 h-full">
-                      <div className={`relative rounded-2xl overflow-hidden shadow-2xl transform transition-all duration-500 h-full ${idx === activeModule ? 'scale-100' : 'scale-95 opacity-50'}`}>
+                      <div 
+                        className={`relative rounded-2xl overflow-hidden shadow-2xl transition-all duration-500 h-full ${idx === activeModule ? 'scale-100' : 'scale-95 opacity-50'}`}
+                        style={{
+                          transform: idx === activeModule ? getCardTransform(idx) : undefined,
+                          transition: isHovered ? 'transform 0.1s ease-out' : 'transform 0.5s ease-out',
+                        }}
+                        onMouseMove={(e) => handleCardMouseMove(e, idx)}
+                        onMouseLeave={handleCardMouseLeave}
+                      >
                         <div className={`relative bg-gradient-to-br ${module.gradient} p-6 h-full`}>
+                          {/* Grid Pattern */}
                           <div className="absolute inset-0 bg-grid-white/[0.1] bg-[size:30px_30px]"></div>
+                          
+                          {/* Glass Reflection Overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 opacity-60"></div>
+                          
+                          {/* Animated Glare Effect */}
+                          <div 
+                            className="absolute inset-0 opacity-0 transition-opacity duration-300 pointer-events-none"
+                            style={{
+                              opacity: isHovered ? 0.4 : 0,
+                              background: `radial-gradient(circle 400px at ${glarePos.x}% ${glarePos.y}%, rgba(255,255,255,0.8), transparent 40%)`,
+                            }}
+                          ></div>
+                          
+                          {/* Shimmer Effect */}
+                          <div 
+                            className="absolute inset-0 opacity-0 transition-opacity duration-300"
+                            style={{
+                              opacity: isHovered ? 0.3 : 0,
+                              background: `linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.5) 50%, transparent 60%)`,
+                              backgroundSize: '200% 200%',
+                              animation: isHovered ? 'shimmer 2s infinite' : 'none',
+                            }}
+                          ></div>
+                          
+                          {/* Dark Gradient Overlay */}
                           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
 
                           <div className="relative z-10 h-full flex flex-col">
                             <div className="flex items-start justify-between mb-4">
                               <div className="flex items-center gap-4">
-                                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center ring-4 ring-white/40 shadow-2xl">
+                                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center ring-4 ring-white/40 shadow-2xl transform transition-transform duration-300 hover:scale-110 hover:rotate-6">
                                   <Icon size={32} weight="fill" className="text-white" />
                                 </div>
                                 <div>
@@ -286,7 +353,7 @@ export default function Home() {
 
                             <div className="grid grid-cols-3 gap-3 mb-4">
                               {module.metrics.map((metric, i) => (
-                                <div key={i} className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/20">
+                                <div key={i} className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/20 transform transition-all duration-300 hover:bg-white/20 hover:scale-105 hover:shadow-2xl">
                                   <div className="text-xs font-semibold text-white/70 mb-1">{metric.label}</div>
                                   <div className="text-2xl font-black text-white">{metric.value}</div>
                                 </div>
@@ -294,15 +361,15 @@ export default function Home() {
                             </div>
 
                             <div className="grid grid-cols-3 gap-3 mb-4">
-                              <div className="bg-white/15 backdrop-blur-md rounded-lg p-3 border border-white/30">
+                              <div className="bg-white/15 backdrop-blur-md rounded-lg p-3 border border-white/30 transform transition-all duration-300 hover:bg-white/25 hover:scale-105">
                                 <div className="text-xs font-bold text-white/60 uppercase tracking-wider mb-1">Primary</div>
                                 <div className="text-lg font-bold text-white">{module.stats.primary}</div>
                               </div>
-                              <div className="bg-white/15 backdrop-blur-md rounded-lg p-3 border border-white/30">
+                              <div className="bg-white/15 backdrop-blur-md rounded-lg p-3 border border-white/30 transform transition-all duration-300 hover:bg-white/25 hover:scale-105">
                                 <div className="text-xs font-bold text-white/60 uppercase tracking-wider mb-1">Secondary</div>
                                 <div className="text-lg font-bold text-white">{module.stats.secondary}</div>
                               </div>
-                              <div className="bg-white/15 backdrop-blur-md rounded-lg p-3 border border-white/30">
+                              <div className="bg-white/15 backdrop-blur-md rounded-lg p-3 border border-white/30 transform transition-all duration-300 hover:bg-white/25 hover:scale-105">
                                 <div className="text-xs font-bold text-white/60 uppercase tracking-wider mb-1">Status</div>
                                 <div className="text-lg font-bold text-white">{module.stats.tertiary}</div>
                               </div>
