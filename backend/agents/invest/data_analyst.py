@@ -18,7 +18,7 @@ from tools.yfinance_tools import (
 )
 from .prompts import DATA_ANALYST_PROMPT, DATA_FORMATTER_PROMPT
 
-MODEL = "gemini-3-flash"
+MODEL = "gemini-2.5-flash"
 
 # Only data_search_agent uses planner (it has tools, no output_schema)
 search_planner = BuiltInPlanner(

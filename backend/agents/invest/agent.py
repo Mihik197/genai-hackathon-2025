@@ -17,7 +17,7 @@ from .trading_analyst import trading_analyst_agent
 from .execution_analyst import execution_analyst_agent
 from .risk_analyst import risk_analyst_agent
 
-MODEL = "gemini-3-flash"
+MODEL = "gemini-2.5-flash"
 
 # Configure thinking for deeper planning
 coordinator_planner = BuiltInPlanner(
