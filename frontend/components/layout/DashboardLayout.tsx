@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,7 +11,9 @@ import {
     Scales,
     Gear,
     Bell,
-    MagnifyingGlass
+    MagnifyingGlass,
+    List,
+    X
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +23,7 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const pathname = usePathname();
+    const [sidebarOpen, setSidebarOpen] = useState(true);
 
     const navItems = [
         { name: "Dashboard", href: "/", icon: SquaresFour },
@@ -32,7 +36,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return (
         <div className="flex h-screen bg-background font-sans overflow-hidden">
             {/* Sidebar */}
-            <aside className="w-64 bg-surface border-r border-border flex flex-col z-20 shadow-xl shadow-gray-200/50">
+            <aside className={cn(
+                "bg-surface border-r border-border flex flex-col z-20 shadow-xl shadow-gray-200/50 transition-all duration-300 flex-shrink-0",
+                sidebarOpen ? "w-64" : "w-0 overflow-hidden"
+            )}>
                 {/* Brand */}
                 <div className="h-16 flex items-center px-6 border-b border-border/50">
                     <div className="flex items-center gap-2 text-primary font-bold text-xl tracking-tight">
@@ -101,16 +108,26 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
                 {/* Header */}
                 <header className="h-16 bg-surface/80 backdrop-blur-md border-b border-border flex items-center justify-between px-8 z-10 sticky top-0">
-                    {/* Search Bar - Placeholder */}
-                    <div className="relative w-96">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                            <MagnifyingGlass size={16} />
+                    {/* Toggle Button & Search */}
+                    <div className="flex items-center gap-4 flex-1">
+                        <button
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                            className="p-2 text-text-muted hover:text-primary transition-colors rounded-lg hover:bg-primary/5"
+                        >
+                            {sidebarOpen ? <X size={24} weight="bold" /> : <List size={24} weight="bold" />}
+                        </button>
+                        
+                        {/* Search Bar - Placeholder */}
+                        <div className="relative w-96">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <MagnifyingGlass size={16} />
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Search transactions, policies, or users..."
+                                className="w-full h-9 pl-9 pr-4 rounded-full bg-gray-100/50 border-none text-sm text-text-main focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all placeholder:text-gray-400"
+                            />
                         </div>
-                        <input
-                            type="text"
-                            placeholder="Search transactions, policies, or users..."
-                            className="w-full h-9 pl-9 pr-4 rounded-full bg-gray-100/50 border-none text-sm text-text-main focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all placeholder:text-gray-400"
-                        />
                     </div>
 
                     <div className="flex items-center gap-4">
@@ -122,10 +139,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </header>
 
                 {/* Scrollable Content Area */}
-                <div className="flex-1 overflow-y-auto bg-background p-8">
-                    <div className="max-w-7xl mx-auto space-y-8 pb-10">
-                        {children}
-                    </div>
+                <div className="flex-1 overflow-y-auto bg-background">
+                    {children}
                 </div>
 
             </main>
