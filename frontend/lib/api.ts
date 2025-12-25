@@ -479,3 +479,119 @@ export async function getStrategyById(id: string): Promise<{ strategy_output?: I
     }
     return await response.json();
 }
+
+// Fraud Detection Types
+export interface FraudTransactionItem {
+    id: string;
+    transaction_id: string;
+    amount: number;
+    type: string;
+    destination_name: string;
+    risk_score: number;
+    verdict: "SAFE" | "SUSPICIOUS" | "HIGH_RISK";
+    fraud_type: string | null;
+    created_at: string;
+}
+
+export interface AIAnalysis {
+    fraud_type: string;
+    confidence: number;
+    reasoning: string;
+    risk_factors: string[];
+    recommended_action: string;
+}
+
+export interface FraudTransactionDetail {
+    id: string;
+    transaction_id: string;
+    amount: number;
+    type: string;
+    source_account_id: string;
+    destination_name: string;
+    risk_score: number;
+    verdict: string;
+    fraud_type: string | null;
+    tier_reached: number;
+    rule_flags: string;
+    rule_flags_list?: string[];
+    ml_score: number | null;
+    ml_features: string | null;
+    ml_features_dict?: Record<string, number>;
+    ai_reasoning: string | null;
+    processing_time_ms: number;
+    transaction_json: string;
+    transaction_data?: Record<string, unknown>;
+    created_at: string;
+}
+
+export interface FraudStats {
+    total_transactions: number;
+    safe_count: number;
+    suspicious_count: number;
+    high_risk_count: number;
+    avg_processing_time_ms: number;
+    fraud_type_breakdown: Record<string, number>;
+}
+
+export interface ProcessNextResponse {
+    success: boolean;
+    transaction?: {
+        transaction_id: string;
+        amount: number;
+        type: string;
+        source_account_id: string;
+        destination_name: string;
+        risk_score: number;
+        verdict: string;
+        fraud_type: string | null;
+        tier_reached: number;
+        rule_flags: string[];
+        ml_score: number | null;
+        ml_features: Record<string, number> | null;
+        ai_analysis: AIAnalysis | null;
+        processing_time_ms: number;
+        timestamp: string;
+    };
+}
+
+// Fraud Detection API Functions
+export async function getFraudTransactions(limit: number = 50): Promise<{ transactions: FraudTransactionItem[] }> {
+    const response = await fetch(`${API_BASE_URL}/fraud/transactions?limit=${limit}`);
+    if (!response.ok) {
+        return { transactions: [] };
+    }
+    return await response.json();
+}
+
+export async function getFraudTransactionById(transactionId: string): Promise<FraudTransactionDetail | null> {
+    const response = await fetch(`${API_BASE_URL}/fraud/transactions/${transactionId}`);
+    if (!response.ok) {
+        return null;
+    }
+    return await response.json();
+}
+
+export async function getFraudStats(): Promise<FraudStats> {
+    const response = await fetch(`${API_BASE_URL}/fraud/stats`);
+    if (!response.ok) {
+        return {
+            total_transactions: 0,
+            safe_count: 0,
+            suspicious_count: 0,
+            high_risk_count: 0,
+            avg_processing_time_ms: 0,
+            fraud_type_breakdown: {}
+        };
+    }
+    return await response.json();
+}
+
+export async function processNextTransaction(): Promise<ProcessNextResponse> {
+    const response = await fetch(`${API_BASE_URL}/fraud/process-next`, {
+        method: "POST",
+    });
+    if (!response.ok) {
+        return { success: false };
+    }
+    return await response.json();
+}
