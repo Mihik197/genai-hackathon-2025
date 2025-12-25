@@ -175,3 +175,154 @@ def get_investment_strategy_by_id(strategy_id: str):
 init_db()
 init_investment_strategies_table()
 
+
+def init_fraud_transactions_table():
+    with get_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fraud_transactions (
+                id TEXT PRIMARY KEY,
+                transaction_id TEXT UNIQUE NOT NULL,
+                amount REAL NOT NULL,
+                type TEXT NOT NULL,
+                source_account_id TEXT,
+                destination_name TEXT,
+                risk_score INTEGER,
+                verdict TEXT,
+                fraud_type TEXT,
+                tier_reached INTEGER,
+                rule_flags TEXT,
+                ml_score REAL,
+                ml_features TEXT,
+                ai_reasoning TEXT,
+                processing_time_ms REAL,
+                transaction_json TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+
+def save_fraud_transaction(
+    record_id: str,
+    transaction_id: str,
+    amount: float,
+    txn_type: str,
+    source_account_id: str,
+    destination_name: str,
+    risk_score: int,
+    verdict: str,
+    fraud_type: str | None,
+    tier_reached: int,
+    rule_flags: str,
+    ml_score: float | None,
+    ml_features: str | None,
+    ai_reasoning: str | None,
+    processing_time_ms: float,
+    transaction_json: str
+):
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO fraud_transactions (
+                id, transaction_id, amount, type, source_account_id,
+                destination_name, risk_score, verdict, fraud_type, tier_reached,
+                rule_flags, ml_score, ml_features, ai_reasoning,
+                processing_time_ms, transaction_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            record_id,
+            transaction_id,
+            amount,
+            txn_type,
+            source_account_id,
+            destination_name,
+            risk_score,
+            verdict,
+            fraud_type,
+            tier_reached,
+            rule_flags,
+            ml_score,
+            ml_features,
+            ai_reasoning,
+            processing_time_ms,
+            transaction_json,
+            datetime.utcnow().isoformat()
+        ))
+
+
+def get_fraud_transactions(limit: int = 50):
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT id, transaction_id, amount, type, destination_name,
+                   risk_score, verdict, fraud_type, created_at
+            FROM fraud_transactions
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_fraud_transaction_by_id(transaction_id: str):
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT * FROM fraud_transactions WHERE transaction_id = ?
+        """, (transaction_id,)).fetchone()
+        if row:
+            result = dict(row)
+            if result.get("transaction_json"):
+                result["transaction_data"] = json.loads(result["transaction_json"])
+            if result.get("rule_flags"):
+                result["rule_flags_list"] = json.loads(result["rule_flags"])
+            if result.get("ml_features"):
+                result["ml_features_dict"] = json.loads(result["ml_features"])
+            return result
+        return None
+
+
+def get_processed_transaction_ids() -> set[str]:
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT transaction_id FROM fraud_transactions
+        """).fetchall()
+        return {row["transaction_id"] for row in rows}
+
+
+def delete_oldest_fraud_transaction() -> str | None:
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT transaction_id FROM fraud_transactions
+            ORDER BY created_at ASC LIMIT 1
+        """).fetchone()
+        if row:
+            txn_id = row["transaction_id"]
+            conn.execute("""
+                DELETE FROM fraud_transactions WHERE transaction_id = ?
+            """, (txn_id,))
+            return txn_id
+        return None
+
+
+def get_fraud_stats():
+    with get_db() as conn:
+        total = conn.execute("SELECT COUNT(*) as cnt FROM fraud_transactions").fetchone()["cnt"]
+        safe = conn.execute("SELECT COUNT(*) as cnt FROM fraud_transactions WHERE verdict = 'SAFE'").fetchone()["cnt"]
+        suspicious = conn.execute("SELECT COUNT(*) as cnt FROM fraud_transactions WHERE verdict = 'SUSPICIOUS'").fetchone()["cnt"]
+        high_risk = conn.execute("SELECT COUNT(*) as cnt FROM fraud_transactions WHERE verdict = 'HIGH_RISK'").fetchone()["cnt"]
+        avg_time = conn.execute("SELECT AVG(processing_time_ms) as avg FROM fraud_transactions").fetchone()["avg"] or 0
+
+        fraud_types = conn.execute("""
+            SELECT fraud_type, COUNT(*) as cnt FROM fraud_transactions
+            WHERE fraud_type IS NOT NULL AND fraud_type != ''
+            GROUP BY fraud_type
+        """).fetchall()
+        fraud_type_breakdown = {row["fraud_type"]: row["cnt"] for row in fraud_types}
+
+        return {
+            "total_transactions": total,
+            "safe_count": safe,
+            "suspicious_count": suspicious,
+            "high_risk_count": high_risk,
+            "avg_processing_time_ms": round(avg_time, 2),
+            "fraud_type_breakdown": fraud_type_breakdown
+        }
+
+
+init_fraud_transactions_table()

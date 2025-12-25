@@ -94,10 +94,11 @@ Confirm when done."""
             )
             
             current_step = "data_search_agent"
-            step_order = ["data_search_agent", "data_format_agent", "trading_analyst", "execution_analyst", "risk_analyst"]
+            step_order = ["data_search_agent", "data_format_agent", "visualization_agent", "trading_analyst", "execution_analyst", "risk_analyst"]
             step_messages = {
                 "data_search_agent": "Searching for market data and news...",
                 "data_format_agent": "Structuring and analyzing market data...",
+                "visualization_agent": "Generating data visualizations...",
                 "trading_analyst": "Generating trading strategies...",
                 "execution_analyst": "Creating execution plan...",
                 "risk_analyst": "Evaluating risk profile..."
@@ -108,7 +109,7 @@ Confirm when done."""
             # Emit initial running state for the first step
             yield emit("progress", step=current_step, status="running",
                       message=step_messages[current_step], 
-                      current=1, total=5)
+                      current=1, total=6)
             
             async for event in runner.run_async(
                 user_id="invest_user",
@@ -126,7 +127,7 @@ Confirm when done."""
                             step_idx = step_order.index(step) + 1
                             yield emit("progress", step=step, status="running",
                                       message=step_messages[step], 
-                                      current=step_idx, total=5)
+                                      current=step_idx, total=6)
                             break
                     
                     if hasattr(event, 'content') and event.content:
@@ -146,6 +147,7 @@ Confirm when done."""
             state = final_session.state if final_session else {}
             
             market_analysis = state.get("market_data_analysis_output", {})
+            visualization_output = state.get("visualization_output", {})
             trading_strategies = state.get("proposed_trading_strategies_output", {})
             execution_plan = state.get("execution_plan_output", {})
             risk_assessment = state.get("final_risk_assessment_output", {})
@@ -170,6 +172,7 @@ Confirm when done."""
                     "risk_tolerance": request.risk_tolerance,
                     "investment_horizon": request.investment_horizon,
                     "market_analysis": market_analysis if isinstance(market_analysis, dict) else {},
+                    "visualization_output": visualization_output if isinstance(visualization_output, dict) else {},
                     "trading_strategies": trading_strategies if isinstance(trading_strategies, dict) else {},
                     "execution_plan": execution_plan if isinstance(execution_plan, dict) else {},
                     "risk_assessment": risk_assessment if isinstance(risk_assessment, dict) else {},

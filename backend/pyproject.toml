@@ -11,6 +11,8 @@ dependencies = [
     "pydantic>=2.12.5",
     "python-dotenv>=1.2.1",
     "python-multipart>=0.0.21",
+    "scikit-learn>=1.8.0",
     "sqlmodel>=0.0.29",
     "uvicorn>=0.40.0",
+    "yfinance>=1.0",
 ]
