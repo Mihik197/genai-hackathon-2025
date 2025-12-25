@@ -595,3 +595,124 @@ export async function processNextTransaction(): Promise<ProcessNextResponse> {
     }
     return await response.json();
 }
+
+// Credit Scoring Types
+export interface CreditAssessmentItem {
+    id: string;
+    assessment_id: string;
+    user_id: string;
+    age: number;
+    occupation: string;
+    monthly_income: number;
+    final_score: number;
+    risk_band: "Low" | "Moderate" | "High";
+    processing_time_ms: number;
+    created_at: string;
+}
+
+export interface CreditAssessmentDetail {
+    id: string;
+    assessment_id: string;
+    user_id: string;
+    age: number;
+    occupation: string;
+    monthly_income: number;
+    final_score: number;
+    risk_band: string;
+    reason_codes: string;
+    reason_codes_list?: string[];
+    rule_score: number;
+    ml_score: number;
+    ml_probability: number;
+    processing_time_ms: number;
+    applicant_json: string;
+    applicant_data?: Record<string, unknown>;
+    created_at: string;
+}
+
+export interface CreditStats {
+    total_assessments: number;
+    low_risk_count: number;
+    moderate_risk_count: number;
+    high_risk_count: number;
+    avg_score: number;
+    avg_processing_time_ms: number;
+}
+
+export interface ProcessNextCreditResponse {
+    success: boolean;
+    assessment?: {
+        assessment_id: string;
+        timestamp: string;
+        applicant: {
+            user_id: string;
+            age: number;
+            occupation: string;
+            monthly_income: number;
+            transaction_count_30d: number;
+            avg_transaction_amount: number;
+            location_risk_score: number;
+            device_change_frequency: number;
+            previous_fraud_flag: number;
+            account_age_months: number;
+            chargeback_count: number;
+        };
+        rule_scoring: {
+            base_score: number;
+            final_rule_score: number;
+        };
+        ml_scoring: {
+            high_risk_probability: number;
+            ml_score: number;
+            model_auc: number | null;
+        };
+        decision: {
+            final_credit_score: number;
+            risk_band: string;
+            reason_codes: string[];
+        };
+        processing_time_ms: number;
+    };
+}
+
+// Credit Scoring API Functions
+export async function getCreditAssessments(limit: number = 50): Promise<{ assessments: CreditAssessmentItem[] }> {
+    const response = await fetch(`${API_BASE_URL}/credit/assessments?limit=${limit}`);
+    if (!response.ok) {
+        return { assessments: [] };
+    }
+    return await response.json();
+}
+
+export async function getCreditAssessmentById(assessmentId: string): Promise<CreditAssessmentDetail | null> {
+    const response = await fetch(`${API_BASE_URL}/credit/assessments/${assessmentId}`);
+    if (!response.ok) {
+        return null;
+    }
+    return await response.json();
+}
+
+export async function getCreditStats(): Promise<CreditStats> {
+    const response = await fetch(`${API_BASE_URL}/credit/stats`);
+    if (!response.ok) {
+        return {
+            total_assessments: 0,
+            low_risk_count: 0,
+            moderate_risk_count: 0,
+            high_risk_count: 0,
+            avg_score: 0,
+            avg_processing_time_ms: 0
+        };
+    }
+    return await response.json();
+}
+
+export async function processNextApplicant(): Promise<ProcessNextCreditResponse> {
+    const response = await fetch(`${API_BASE_URL}/credit/process-next`, {
+        method: "POST",
+    });
+    if (!response.ok) {
+        return { success: false };
+    }
+    return await response.json();
+}

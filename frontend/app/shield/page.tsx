@@ -12,7 +12,7 @@ import {
     type FraudTransactionItem,
     type FraudStats,
 } from "@/lib/api";
-import { ShieldCheck, ShieldWarning, Warning, Clock, CircleNotch, ArrowRight } from "@phosphor-icons/react";
+import { ShieldCheck, ShieldWarning, Warning, Clock, CircleNotch, ArrowRight, FileText } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +116,15 @@ export default function ShieldPage() {
                     <p className="text-text-muted mt-2">Real-time transaction monitoring and fraud detection.</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <a
+                        href="/internal-transaction-framework.pdf"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-main bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        <FileText size={18} />
+                        View Documentation
+                    </a>
                     {isProcessing ? (
                         <span className="flex items-center gap-2 text-sm text-primary">
                             <CircleNotch size={16} className="animate-spin" />

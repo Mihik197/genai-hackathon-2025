@@ -11,6 +11,7 @@ from routers import comply
 from routers import policies
 from routers import invest
 from routers import fraud
+from routers import credit
 
 app = FastAPI(
     title="FinGuard AI",
@@ -32,6 +33,7 @@ app.include_router(comply.router)
 app.include_router(policies.router)
 app.include_router(invest.router)
 app.include_router(fraud.router)
+app.include_router(credit.router)
 
 
 @app.get("/")

@@ -326,3 +326,140 @@ def get_fraud_stats():
 
 
 init_fraud_transactions_table()
+
+
+def init_credit_assessments_table():
+    with get_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS credit_assessments (
+                id TEXT PRIMARY KEY,
+                assessment_id TEXT UNIQUE NOT NULL,
+                user_id TEXT NOT NULL,
+                age INTEGER,
+                occupation TEXT,
+                monthly_income REAL,
+                final_score INTEGER,
+                risk_band TEXT,
+                reason_codes TEXT,
+                rule_score INTEGER,
+                ml_score INTEGER,
+                ml_probability REAL,
+                processing_time_ms REAL,
+                applicant_json TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+
+def save_credit_assessment(
+    record_id: str,
+    assessment_id: str,
+    user_id: str,
+    age: int,
+    occupation: str,
+    monthly_income: float,
+    final_score: int,
+    risk_band: str,
+    reason_codes: str,
+    rule_score: int,
+    ml_score: int,
+    ml_probability: float,
+    processing_time_ms: float,
+    applicant_json: str
+):
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO credit_assessments (
+                id, assessment_id, user_id, age, occupation, monthly_income,
+                final_score, risk_band, reason_codes, rule_score, ml_score,
+                ml_probability, processing_time_ms, applicant_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            record_id,
+            assessment_id,
+            user_id,
+            age,
+            occupation,
+            monthly_income,
+            final_score,
+            risk_band,
+            reason_codes,
+            rule_score,
+            ml_score,
+            ml_probability,
+            processing_time_ms,
+            applicant_json,
+            datetime.utcnow().isoformat()
+        ))
+
+
+def get_credit_assessments(limit: int = 50):
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT id, assessment_id, user_id, age, occupation, monthly_income,
+                   final_score, risk_band, processing_time_ms, created_at
+            FROM credit_assessments
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_credit_assessment_by_id(assessment_id: str):
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT * FROM credit_assessments WHERE assessment_id = ?
+        """, (assessment_id,)).fetchone()
+        if row:
+            result = dict(row)
+            if result.get("applicant_json"):
+                result["applicant_data"] = json.loads(result["applicant_json"])
+            if result.get("reason_codes"):
+                result["reason_codes_list"] = json.loads(result["reason_codes"])
+            return result
+        return None
+
+
+def get_processed_applicant_ids() -> set[str]:
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT user_id FROM credit_assessments
+        """).fetchall()
+        return {row["user_id"] for row in rows}
+
+
+def delete_oldest_credit_assessment() -> str | None:
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT user_id FROM credit_assessments
+            ORDER BY created_at ASC LIMIT 1
+        """).fetchone()
+        if row:
+            user_id = row["user_id"]
+            conn.execute("""
+                DELETE FROM credit_assessments WHERE user_id = ?
+            """, (user_id,))
+            return user_id
+        return None
+
+
+def get_credit_stats():
+    with get_db() as conn:
+        total = conn.execute("SELECT COUNT(*) as cnt FROM credit_assessments").fetchone()["cnt"]
+        low = conn.execute("SELECT COUNT(*) as cnt FROM credit_assessments WHERE risk_band = 'Low'").fetchone()["cnt"]
+        moderate = conn.execute("SELECT COUNT(*) as cnt FROM credit_assessments WHERE risk_band = 'Moderate'").fetchone()["cnt"]
+        high = conn.execute("SELECT COUNT(*) as cnt FROM credit_assessments WHERE risk_band = 'High'").fetchone()["cnt"]
+        avg_score = conn.execute("SELECT AVG(final_score) as avg FROM credit_assessments").fetchone()["avg"] or 0
+        avg_time = conn.execute("SELECT AVG(processing_time_ms) as avg FROM credit_assessments").fetchone()["avg"] or 0
+
+        return {
+            "total_assessments": total,
+            "low_risk_count": low,
+            "moderate_risk_count": moderate,
+            "high_risk_count": high,
+            "avg_score": round(avg_score, 1),
+            "avg_processing_time_ms": round(avg_time, 2)
+        }
+
+
+init_credit_assessments_table()

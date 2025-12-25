@@ -23,7 +23,7 @@ MODEL = "gemini-2.5-flash"
 coordinator_planner = BuiltInPlanner(
     thinking_config=ThinkingConfig(
         include_thoughts=True,
-        thinking_level="medium",  # Higher budget for orchestration decisions
+        thinking_budget=16000,  # Higher budget for orchestration decisions
     )
 )
 
