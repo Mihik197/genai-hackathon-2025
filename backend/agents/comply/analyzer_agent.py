@@ -32,7 +32,7 @@ def create_policy_analyzer(policy_name: str) -> LlmAgent:
     
     return LlmAgent(
         name=f"AnalyzerAgent_{safe_name}",
-        model="gemini-3-flash-preview",
+        model="gemini-3-flash",
         description=f"Analyzes {policy_name} against RBI regulation for compliance gaps.",
         instruction=f"""You are a compliance analyst for HDFC Bank.
 

@@ -6,7 +6,7 @@ from google.adk import Agent
 from schemas.invest import ExecutionPlanOutput
 from .prompts import EXECUTION_ANALYST_PROMPT
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3-flash"
 
 # Note: planner cannot be used with output_schema per ADK limitations
 execution_analyst_agent = Agent(

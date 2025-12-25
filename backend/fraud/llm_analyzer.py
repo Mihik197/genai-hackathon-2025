@@ -36,7 +36,7 @@ Fraud types to consider:
 - MULE_ACCOUNT: Account used to move illicit funds
 - LEGITIMATE: Transaction appears genuine despite flags
 
-Be thorough in your reasoning."""
+Be thorough and detailed in your reasoning."""
 
 
 client = genai.Client()
@@ -54,7 +54,7 @@ def analyze_transaction(
     )
 
     response = client.models.generate_content(
-        model="gemini-flash-lite-latest",
+        model="gemini-3-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",

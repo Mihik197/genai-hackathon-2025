@@ -16,7 +16,7 @@ import { ShieldCheck, ShieldWarning, Warning, Clock, CircleNotch, ArrowRight } f
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-const POLLING_INTERVAL = 45000;
+const POLLING_INTERVAL = 17000; // ~15-20 seconds for live transaction feel
 
 export default function ShieldPage() {
     const router = useRouter();

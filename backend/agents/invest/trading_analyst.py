@@ -6,7 +6,7 @@ from google.adk import Agent
 from schemas.invest import TradingStrategiesOutput
 from .prompts import TRADING_ANALYST_PROMPT
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3-flash"
 
 # Note: planner cannot be used with output_schema per ADK limitations
 trading_analyst_agent = Agent(

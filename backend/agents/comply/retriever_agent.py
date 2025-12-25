@@ -62,7 +62,7 @@ def get_policies_for_categories(categories: list[str]) -> list[dict]:
 
 retriever_agent = LlmAgent(
     name="RetrieverAgent",
-    model="gemini-2.5-flash",
+    model="gemini-3-flash",
     description="Retrieves relevant HDFC Bank policy documents based on categories.",
     instruction="""You are a policy document retriever.
 
